@@ -1,0 +1,309 @@
+
+<h2 class="sr-only">Tablero de rutas 2023–2025 con tabla comparativa y gráfica de pasaje perdido</h2>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+.header { padding: 1.5rem 0 1rem; }
+.header h1 { font-size: 20px; font-weight: 500; color: var(--color-text-primary); }
+.header p { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+.metric { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px 16px; }
+.metric .label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; }
+.metric .value { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+.metric .sub { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+.controls { display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+.controls label { font-size: 13px; color: var(--color-text-secondary); }
+.search { font-size: 13px; flex: 1; min-width: 140px; }
+.table-wrap { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+thead th { background: var(--color-background-secondary); padding: 10px 12px; text-align: left; font-weight: 500; font-size: 12px; color: var(--color-text-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+thead th:hover { color: var(--color-text-primary); }
+tbody tr { border-bottom: 0.5px solid var(--color-border-tertiary); }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: var(--color-background-secondary); }
+tbody td { padding: 9px 12px; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ruta-col { font-weight: 500; }
+.num { text-align: right; color: var(--color-text-secondary); }
+.total-col { text-align: right; font-weight: 500; }
+.dif-col { text-align: right; }
+.bar-cell { padding: 9px 12px 9px 0; }
+.badge { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 7px; border-radius: 4px; }
+.badge-zero { background: #F1EFE8; color: #5F5E5A; }
+.badge-mid { background: #FAEEDA; color: #854F0B; }
+.badge-low { background: #FCEBEB; color: #A32D2D; }
+.sort-ind { display: inline; margin-left: 3px; opacity: 0.4; }
+.sort-ind.active { opacity: 1; }
+.pagination { display: flex; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; font-size: 13px; color: var(--color-text-secondary); }
+.page-btn { background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 4px 10px; cursor: pointer; font-size: 12px; color: var(--color-text-primary); }
+.page-btn:disabled { opacity: 0.35; cursor: default; }
+.section-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 10px; }
+.divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 2rem 0 1.5rem; }
+</style>
+
+<div class="header">
+  <h1>Tablero de rutas — 2023 a 2025</h1>
+  <p>Comparativo de volumen por año y diferencia porcentual 2023 vs 2025</p>
+</div>
+
+<div class="metrics" id="metricsRow"></div>
+
+<div class="controls">
+  <label>Filtrar:</label>
+  <select id="filterSel" onchange="applyFilter()">
+    <option value="all">Todas las rutas</option>
+    <option value="100">100% diferencia</option>
+    <option value="high">Más del 75%</option>
+    <option value="mid">Entre 50% y 75%</option>
+    <option value="low">Menos del 50%</option>
+  </select>
+  <label>Mostrar:</label>
+  <select id="pageSizeSel" onchange="applyFilter()">
+    <option value="15">15 filas</option>
+    <option value="25">25 filas</option>
+    <option value="50">50 filas</option>
+    <option value="999">Todas</option>
+  </select>
+  <input class="search" type="text" id="searchInput" placeholder="Buscar ruta..." oninput="applyFilter()" />
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:17%" onclick="sortBy('ruta')">Ruta <span class="sort-ind" id="sort-ruta"></span></th>
+        <th style="width:16%" class="num" onclick="sortBy('v2023')">2,023 <span class="sort-ind" id="sort-v2023"></span></th>
+        <th style="width:16%" class="num" onclick="sortBy('v2024')">2,024 <span class="sort-ind" id="sort-v2024"></span></th>
+        <th style="width:16%" class="num" onclick="sortBy('v2025')">2,025 <span class="sort-ind" id="sort-v2025"></span></th>
+        <th style="width:16%" class="num" onclick="sortBy('total')">Total <span class="sort-ind" id="sort-total"></span></th>
+        <th style="width:11%" class="num" onclick="sortBy('dif')">Dif % <span class="sort-ind" id="sort-dif"></span></th>
+        <th style="width:8%"></th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+</div>
+<div class="pagination" id="paginationRow"></div>
+
+<hr class="divider">
+
+<div class="section-title">Pasaje perdido por ruta (2023 − 2025)</div>
+
+<div class="controls">
+  <label>Mostrar top:</label>
+  <select id="topN" onchange="renderChart()">
+    <option value="15" selected>15 rutas</option>
+    <option value="25">25 rutas</option>
+    <option value="62">Todas</option>
+  </select>
+  <label style="margin-left:8px">Ordenar por:</label>
+  <select id="sortMode" onchange="renderChart()">
+    <option value="abs">Pasaje perdido (absoluto)</option>
+    <option value="pct">Diferencia %</option>
+  </select>
+</div>
+
+<div style="display:flex;gap:16px;margin-bottom:10px;font-size:12px;color:var(--color-text-secondary);">
+  <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#E24B4A"></span>Perdido (2023 − 2025)</span>
+  <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:2px;background:#185FA5"></span>Retenido (2025)</span>
+</div>
+
+<div id="chartWrap" style="position:relative;width:100%;">
+  <canvas id="lostChart" role="img" aria-label="Barras horizontales de pasaje perdido por ruta, ordenadas de mayor a menor">Datos de pasaje perdido por ruta.</canvas>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const raw = [
+  {ruta:"MP-NI",v2023:6795,v2024:0,v2025:0,total:6795,dif:100},
+  {ruta:"C90",v2023:30769,v2024:0,v2025:0,total:30769,dif:100},
+  {ruta:"C54",v2023:49206,v2024:0,v2025:0,total:49206,dif:100},
+  {ruta:"C93",v2023:52638,v2024:1119,v2025:0,total:53757,dif:100},
+  {ruta:"T13A-C02",v2023:183393,v2024:1941,v2025:0,total:185334,dif:100},
+  {ruta:"C91",v2023:68641,v2024:131761,v2025:0,total:200402,dif:100},
+  {ruta:"C50-V1",v2023:302935,v2024:0,v2025:0,total:302935,dif:100},
+  {ruta:"C05",v2023:401607,v2024:0,v2025:0,total:401607,dif:100},
+  {ruta:"C67V1",v2023:435205,v2024:0,v2025:0,total:435205,dif:100},
+  {ruta:"C135",v2023:509567,v2024:0,v2025:0,total:509567,dif:100},
+  {ruta:"C136",v2023:464167,v2024:52272,v2025:0,total:516439,dif:100},
+  {ruta:"C67V2",v2023:537409,v2024:0,v2025:0,total:537409,dif:100},
+  {ruta:"C80-V2",v2023:457194,v2024:217473,v2025:0,total:674667,dif:100},
+  {ruta:"C80-V1",v2023:476990,v2024:201257,v2025:0,total:678247,dif:100},
+  {ruta:"C117",v2023:859728,v2024:0,v2025:0,total:859728,dif:100},
+  {ruta:"MP-C03-P",v2023:537871,v2024:439849,v2025:0,total:977720,dif:100},
+  {ruta:"MP-C03-R",v2023:939195,v2024:100636,v2025:0,total:1039831,dif:100},
+  {ruta:"T13",v2023:1871459,v2024:0,v2025:0,total:1871459,dif:100},
+  {ruta:"MP-C02-R",v2023:1757605,v2024:142967,v2025:0,total:1900572,dif:100},
+  {ruta:"C41",v2023:2250098,v2024:0,v2025:0,total:2250098,dif:100},
+  {ruta:"T14A-C02",v2023:2380799,v2024:0,v2025:0,total:2380799,dif:100},
+  {ruta:"MP-C02-P",v2023:1773915,v2024:1083723,v2025:0,total:2857638,dif:100},
+  {ruta:"MP-C01-R",v2023:1914600,v2024:1602975,v2025:0,total:3517575,dif:100},
+  {ruta:"MP-C01-P",v2023:3852296,v2024:291864,v2025:0,total:4144160,dif:100},
+  {ruta:"C102",v2023:3378814,v2024:1641425,v2025:0,total:5020239,dif:100},
+  {ruta:"C129",v2023:534411,v2024:0,v2025:8,total:534419,dif:100},
+  {ruta:"T17-C01",v2023:1758501,v2024:1140801,v2025:34,total:2899336,dif:99.99},
+  {ruta:"T14B-C02",v2023:1192072,v2024:688490,v2025:154,total:1880716,dif:99.99},
+  {ruta:"C121A",v2023:5103038,v2024:2274261,v2025:762,total:7378061,dif:99.99},
+  {ruta:"MP-A03-P",v2023:216814,v2024:26727,v2025:590,total:244131,dif:99.73},
+  {ruta:"MP-A07-P",v2023:462405,v2024:129790,v2025:3198,total:595393,dif:99.31},
+  {ruta:"C125V2",v2023:3295892,v2024:454085,v2025:33391,total:3783368,dif:98.99},
+  {ruta:"T01-PV",v2023:211212,v2024:577017,v2025:3727,total:791956,dif:98.24},
+  {ruta:"C65",v2023:819564,v2024:271678,v2025:18547,total:1109789,dif:97.74},
+  {ruta:"MP-A08-P",v2023:43457,v2024:93418,v2025:1492,total:138367,dif:96.57},
+  {ruta:"C-107",v2023:388597,v2024:76480,v2025:23990,total:489067,dif:93.83},
+  {ruta:"T14A",v2023:210285,v2024:159448,v2025:20135,total:389868,dif:90.42},
+  {ruta:"T07",v2023:716841,v2024:604549,v2025:72486,total:1393876,dif:89.89},
+  {ruta:"C24",v2023:910216,v2024:360074,v2025:175092,total:1445382,dif:80.76},
+  {ruta:"T07-C04",v2023:139647,v2024:77648,v2025:27246,total:244541,dif:80.49},
+  {ruta:"T03-PV",v2023:1373602,v2024:4747176,v2025:271820,total:6392598,dif:80.21},
+  {ruta:"AMC03",v2023:192757,v2024:94357,v2025:39682,total:326796,dif:79.41},
+  {ruta:"T15-C04",v2023:491116,v2024:213234,v2025:121323,total:825673,dif:75.30},
+  {ruta:"C69",v2023:820523,v2024:259452,v2025:204939,total:1284914,dif:75.02},
+  {ruta:"T13C-C02-12",v2023:372209,v2024:227956,v2025:96892,total:697057,dif:73.97},
+  {ruta:"MP-NI-R",v2023:35692,v2024:3653,v2025:9851,total:49196,dif:72.40},
+  {ruta:"T15-1",v2023:4162890,v2024:1706156,v2025:1270474,total:7139520,dif:69.48},
+  {ruta:"C31",v2023:814444,v2024:416113,v2025:252809,total:1483366,dif:68.96},
+  {ruta:"MP-A10-P",v2023:1135985,v2024:840420,v2025:360027,total:2336432,dif:68.31},
+  {ruta:"MP-NI-P",v2023:38219,v2024:17793,v2025:13192,total:69204,dif:65.48},
+  {ruta:"MP-A02-R",v2023:1829,v2024:1206,v2025:636,total:3671,dif:65.23},
+  {ruta:"MP-A09-R",v2023:110314,v2024:34511,v2025:40263,total:185088,dif:63.50},
+  {ruta:"AMC13",v2023:23831,v2024:27880,v2025:9195,total:60906,dif:61.42},
+  {ruta:"C06-1",v2023:1648994,v2024:2104127,v2025:638923,total:4392044,dif:61.25},
+  {ruta:"T02-PV",v2023:90053,v2024:650289,v2025:35382,total:775724,dif:60.71},
+  {ruta:"C111-2",v2023:1183141,v2024:541319,v2025:468743,total:2193203,dif:60.38},
+  {ruta:"T13B-5",v2023:2384805,v2024:2534413,v2025:962139,total:5881357,dif:59.66},
+  {ruta:"C118",v2023:600705,v2024:582314,v2025:247385,total:1430404,dif:58.82},
+  {ruta:"MP-A06-R",v2023:966,v2024:1021,v2025:419,total:2406,dif:56.63},
+  {ruta:"C10",v2023:1667299,v2024:1207725,v2025:725798,total:3600822,dif:56.47},
+  {ruta:"C71",v2023:2071722,v2024:1839764,v2025:997395,total:4908881,dif:51.86},
+  {ruta:"C09",v2023:4007110,v2024:3147168,v2025:1984391,total:9138669,dif:50.48},
+];
+
+const fmt = n => n.toLocaleString('es-MX');
+const fmtM = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'K' : n;
+
+let sortCol = 'total', sortAsc = false, currentPage = 1;
+
+function badgeFor(dif) {
+  if (dif >= 100) return '<span class="badge badge-zero">100%</span>';
+  if (dif >= 50)  return '<span class="badge badge-mid">' + dif.toFixed(2) + '%</span>';
+  return '<span class="badge badge-low">' + dif.toFixed(2) + '%</span>';
+}
+function barColor(dif) {
+  if (dif >= 100) return '#888780';
+  if (dif >= 50)  return '#EF9F27';
+  return '#E24B4A';
+}
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = false; }
+  applyFilter();
+}
+function getData() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const mode = document.getElementById('filterSel').value;
+  return raw.filter(r => {
+    if (search && !r.ruta.toLowerCase().includes(search)) return false;
+    if (mode === '100') return r.dif >= 100;
+    if (mode === 'high') return r.dif >= 75 && r.dif < 100;
+    if (mode === 'mid') return r.dif >= 50 && r.dif < 75;
+    if (mode === 'low') return r.dif < 50;
+    return true;
+  }).sort((a,b) => {
+    const av = sortCol === 'ruta' ? a.ruta : a[sortCol];
+    const bv = sortCol === 'ruta' ? b.ruta : b[sortCol];
+    return sortAsc ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
+  });
+}
+function applyFilter() { currentPage = 1; render(); }
+function goPage(p) { currentPage = p; render(); }
+
+function render() {
+  const data = getData();
+  const ps = parseInt(document.getElementById('pageSizeSel').value);
+  const totalPages = Math.ceil(data.length / ps);
+  if (currentPage > totalPages) currentPage = Math.max(1, totalPages);
+  const page = data.slice((currentPage-1)*ps, currentPage*ps);
+
+  ['ruta','v2023','v2024','v2025','total','dif'].forEach(c => {
+    const el = document.getElementById('sort-' + c);
+    if (el) { el.textContent = sortCol === c ? (sortAsc ? '↑' : '↓') : '↕'; el.className = 'sort-ind' + (sortCol === c ? ' active' : ''); }
+  });
+
+  document.getElementById('tableBody').innerHTML = page.map(r => `
+    <tr>
+      <td class="ruta-col">${r.ruta}</td>
+      <td class="num">${fmt(r.v2023)}</td>
+      <td class="num">${fmt(r.v2024)}</td>
+      <td class="num">${fmt(r.v2025)}</td>
+      <td class="total-col" style="text-align:right">${fmt(r.total)}</td>
+      <td class="dif-col">${badgeFor(r.dif)}</td>
+      <td class="bar-cell">
+        <div style="width:50px;display:inline-block;vertical-align:middle;height:6px;background:var(--color-background-secondary);border-radius:3px;overflow:hidden">
+          <div style="width:${r.dif}%;height:100%;background:${barColor(r.dif)};border-radius:3px"></div>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  const pag = document.getElementById('paginationRow');
+  if (totalPages <= 1) { pag.innerHTML = `<span>${data.length} rutas</span>`; }
+  else { pag.innerHTML = `<span>${data.length} rutas · página ${currentPage} de ${totalPages}</span>
+    <button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹ Ant.</button>
+    <button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>Sig. ›</button>`; }
+
+  const total = data.reduce((s,r)=>s+r.total,0);
+  const avg = data.length ? data.reduce((s,r)=>s+r.dif,0)/data.length : 0;
+  const zero2025 = data.filter(r=>r.v2025===0).length;
+  document.getElementById('metricsRow').innerHTML = `
+    <div class="metric"><div class="label">Rutas en vista</div><div class="value">${data.length}</div><div class="sub">de ${raw.length} totales</div></div>
+    <div class="metric"><div class="label">Volumen total</div><div class="value">${fmtM(total)}</div><div class="sub">pasajeros acumulados</div></div>
+    <div class="metric"><div class="label">Dif. promedio</div><div class="value">${avg.toFixed(1)}%</div><div class="sub">2023 vs 2025</div></div>
+    <div class="metric"><div class="label">Sin datos 2025</div><div class="value">${zero2025}</div><div class="sub">rutas con 0 en 2025</div></div>`;
+}
+
+let chartInst = null;
+function renderChart() {
+  const n = parseInt(document.getElementById('topN').value);
+  const mode = document.getElementById('sortMode').value;
+  const withLost = raw.map(r => ({...r, lost: r.v2023 - r.v2025, pct: (r.v2023 - r.v2025)/r.v2023*100}));
+  const sorted = [...withLost].sort((a,b) => mode === 'abs' ? b.lost - a.lost : b.pct - a.pct).slice(0, n);
+
+  const h = Math.max(300, sorted.length * 36 + 80);
+  document.getElementById('chartWrap').style.height = h + 'px';
+
+  if (chartInst) chartInst.destroy();
+  chartInst = new Chart(document.getElementById('lostChart'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(r => r.ruta),
+      datasets: [
+        { label: 'Perdido', data: sorted.map(r => r.lost), backgroundColor: '#E24B4A', borderWidth: 0, borderRadius: 2 },
+        { label: 'Retenido', data: sorted.map(r => r.v2025), backgroundColor: '#185FA5', borderWidth: 0, borderRadius: 2 }
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const r = sorted[ctx.dataIndex];
+              if (ctx.datasetIndex === 0) return ' Perdido: ' + r.lost.toLocaleString('es-MX') + ' (' + r.pct.toFixed(1) + '%)';
+              return ' Retenido 2025: ' + r.v2025.toLocaleString('es-MX');
+            },
+            afterBody: items => ['Base 2023: ' + sorted[items[0].dataIndex].v2023.toLocaleString('es-MX')]
+          }
+        }
+      },
+      scales: {
+        x: { stacked: true, ticks: { font:{size:11}, color:'#888780', callback: v => fmtM(v) }, grid: { color:'rgba(136,135,128,0.12)' } },
+        y: { stacked: true, ticks: { font:{size:11}, color:'#444441' }, grid: { display:false } }
+      }
+    }
+  });
+}
+
+render();
+renderChart();
+</script>
